@@ -25,7 +25,7 @@ jobs:
           sudo apt-get update
           sudo apt-get -y install ninja-build cmake m4 \
             automake autoconf libtool gettext libasound2-dev \
-            pkg-config python3-construct
+            pkg-config python3-construct rpm cpio fakeroot
 
       - name: Install autoconf 2.72
         run: |
@@ -48,14 +48,53 @@ jobs:
         run: |
           ./sof-topologies/scripts/build-topology.sh -T -t
 
-      - name: Run Topology Validation Suite
+      - name: Build RPM, DEB & TGZ Packages
         run: |
-          ctest --test-dir "${GITHUB_WORKSPACE}/sof-topologies/build" --output-on-failure
+          make -C "${GITHUB_WORKSPACE}/sof-topologies" deb
+          make -C "${GITHUB_WORKSPACE}/sof-topologies" rpm
+          make -C "${GITHUB_WORKSPACE}/sof-topologies" tgz
 
-      - name: Validate Install & Package Targets
+      - name: Run Topology & Package Validation Suite
+        run: |
+          ctest --test-dir "${GITHUB_WORKSPACE}/sof-topologies/build" --output-on-failure -V
+
+      - name: Validate DEB Package System Install & Removal
+        run: |
+          sudo rm -rf /lib/firmware/intel/sof-tplg \
+                      /lib/firmware/intel/sof-ipc4-tplg \
+                      /lib/firmware/intel/sof-ace-tplg
+          sudo dpkg -i --force-overwrite "${GITHUB_WORKSPACE}/sof-topologies/build/"sof-topology_*_all.deb
+          dpkg -s sof-topology
+          sudo dpkg -V sof-topology
+          ./sof-topologies/tools/validate-package.py \
+            --validate-installed-root / \
+            --build-dir "${GITHUB_WORKSPACE}/sof-topologies/build" \
+            --abi-header "${GITHUB_WORKSPACE}/sof-topologies/include/kernel/abi.h"
+          sudo dpkg -r sof-topology
+          test ! -e /lib/firmware/intel/sof-tplg
+          test ! -e /lib/firmware/intel/sof-ipc4-tplg
+          test ! -L /lib/firmware/intel/sof-ace-tplg
+
+      - name: Validate RPM Package System Install & Removal
+        run: |
+          sudo rm -rf /lib/firmware/intel/sof-tplg \
+                      /lib/firmware/intel/sof-ipc4-tplg \
+                      /lib/firmware/intel/sof-ace-tplg
+          sudo rpm --dbpath /var/lib/rpm -ivh --nodeps --replacefiles "${GITHUB_WORKSPACE}/sof-topologies/build/"sof-topology-*.noarch.rpm
+          sudo rpm --dbpath /var/lib/rpm -qi sof-topology
+          sudo rpm --dbpath /var/lib/rpm -V sof-topology
+          ./sof-topologies/tools/validate-package.py \
+            --validate-installed-root / \
+            --build-dir "${GITHUB_WORKSPACE}/sof-topologies/build" \
+            --abi-header "${GITHUB_WORKSPACE}/sof-topologies/include/kernel/abi.h"
+          sudo rpm --dbpath /var/lib/rpm -e sof-topology
+          test ! -e /lib/firmware/intel/sof-tplg
+          test ! -e /lib/firmware/intel/sof-ipc4-tplg
+          test ! -L /lib/firmware/intel/sof-ace-tplg
+
+      - name: Validate Install Script
         run: |
           ./sof-topologies/scripts/install-topology.sh --dest "${GITHUB_WORKSPACE}/stage/lib/firmware"
           test -d "${GITHUB_WORKSPACE}/stage/lib/firmware/intel/sof-tplg"
           test -d "${GITHUB_WORKSPACE}/stage/lib/firmware/intel/sof-ipc4-tplg"
           test -L "${GITHUB_WORKSPACE}/stage/lib/firmware/intel/sof-ace-tplg"
-          ./sof-topologies/scripts/build-topology.sh -p

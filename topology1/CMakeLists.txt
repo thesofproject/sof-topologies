@@ -138,9 +138,9 @@ set(TPLGS
 # down.
 add_subdirectory(production)
 
-# "Install" all v1 production topologies two directory levels up.
+# "Install" all v1 production topologies to the top-level topology build directory.
 add_custom_target(topologies1 ALL
-    COMMAND ${CMAKE_COMMAND} -E copy_directory production ${SOF_TOPOLOGY_BINARY_DIRECTORY}
+    COMMAND sh -c "cp -a production/*.tplg \"${SOF_TOPOLOGY_BINARY_DIRECTORY}/\""
 )
 
 foreach(tplg ${TPLGS})
