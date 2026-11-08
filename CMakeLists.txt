@@ -49,6 +49,17 @@ set(SOF_ABI_PATCH "${CMAKE_MATCH_1}")
 set(SOF_ABI_VERSION_STRING "${SOF_ABI_MAJOR}.${SOF_ABI_MINOR}.${SOF_ABI_PATCH}")
 message(STATUS "SOF Topology ABI version: ${SOF_ABI_VERSION_STRING}")
 
+set(SOF_PACKAGE_VERSION "${SOF_ABI_VERSION_STRING}" CACHE STRING "Package version for RPM/DEB/TGZ artifacts")
+if(SOF_PACKAGE_VERSION MATCHES "^([0-9]+)\\.([0-9]+)\\.([0-9]+)")
+	set(SOF_PKG_VERSION_MAJOR "${CMAKE_MATCH_1}")
+	set(SOF_PKG_VERSION_MINOR "${CMAKE_MATCH_2}")
+	set(SOF_PKG_VERSION_PATCH "${CMAKE_MATCH_3}")
+else()
+	set(SOF_PKG_VERSION_MAJOR "${SOF_ABI_MAJOR}")
+	set(SOF_PKG_VERSION_MINOR "${SOF_ABI_MINOR}")
+	set(SOF_PKG_VERSION_PATCH "${SOF_ABI_PATCH}")
+endif()
+
 set(SOF_TOPOLOGY_BINARY_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
 set(SOF_TOPOLOGY1_SOURCE_DIR "${PROJECT_SOURCE_DIR}/topology1")
 set(SOF_TOPOLOGY2_SOURCE_DIR "${PROJECT_SOURCE_DIR}/topology2")
@@ -89,12 +100,20 @@ set(_ipc4_dest "${_install_base}/sof-ipc4-tplg${SOF_TPLG_VERSION_SUFFIX}")
 set(_ace_link_name "sof-ace-tplg${SOF_TPLG_VERSION_SUFFIX}")
 set(_ipc4_dir_name "sof-ipc4-tplg${SOF_TPLG_VERSION_SUFFIX}")
 
+set(_tplg_file_perms OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ)
+set(_tplg_dir_perms OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
+set(CMAKE_INSTALL_DEFAULT_DIRECTORY_PERMISSIONS ${_tplg_dir_perms})
+
 if(BUILD_TOPOLOGY1)
 	install(
 		DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/topology1/production/"
 		DESTINATION "${_ipc3_dest}"
 		COMPONENT ipc3-prod
-		FILES_MATCHING PATTERN "*.tplg"
+		FILE_PERMISSIONS ${_tplg_file_perms}
+		DIRECTORY_PERMISSIONS ${_tplg_dir_perms}
+		FILES_MATCHING
+		PATTERN "CMakeFiles" EXCLUDE
+		PATTERN "*.tplg"
 	)
 endif()
 
@@ -103,24 +122,32 @@ if(BUILD_TOPOLOGY2)
 		DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/topology2/production/ipc3/"
 		DESTINATION "${_ipc3_dest}"
 		COMPONENT ipc3-prod
-		FILES_MATCHING PATTERN "*.tplg"
+		FILE_PERMISSIONS ${_tplg_file_perms}
+		DIRECTORY_PERMISSIONS ${_tplg_dir_perms}
+		FILES_MATCHING
+		PATTERN "CMakeFiles" EXCLUDE
+		PATTERN "*.tplg"
 	)
 	install(
 		DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/topology2/production/"
 		DESTINATION "${_ipc4_dest}"
 		COMPONENT ipc4-prod
+		FILE_PERMISSIONS ${_tplg_file_perms}
+		DIRECTORY_PERMISSIONS ${_tplg_dir_perms}
 		FILES_MATCHING
+		PATTERN "CMakeFiles" EXCLUDE
 		PATTERN "ipc3" EXCLUDE
 		PATTERN "*.tplg"
 	)
-	# Create sof-ace-tplg -> sof-ipc4-tplg symlink on install
-	install(CODE "
-		set(_dest_dir \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${_install_base}\")
-		file(MAKE_DIRECTORY \"\${_dest_dir}\")
-		execute_process(
-			COMMAND \"${CMAKE_COMMAND}\" -E create_symlink \"${_ipc4_dir_name}\" \"\${_dest_dir}/${_ace_link_name}\"
-		)
-	" COMPONENT ipc4-prod)
+	# Create sof-ace-tplg -> sof-ipc4-tplg symlink in build dir and install it
+	execute_process(
+		COMMAND "${CMAKE_COMMAND}" -E create_symlink "${_ipc4_dir_name}" "${CMAKE_CURRENT_BINARY_DIR}/${_ace_link_name}"
+	)
+	install(
+		FILES "${CMAKE_CURRENT_BINARY_DIR}/${_ace_link_name}"
+		DESTINATION "${_install_base}"
+		COMPONENT ipc4-prod
+	)
 
 	if(BUILD_DEV_TOPOLOGIES)
 		install(
@@ -128,7 +155,11 @@ if(BUILD_TOPOLOGY2)
 			DESTINATION "${_install_base}/sof-ipc4-tplg-dev${SOF_TPLG_VERSION_SUFFIX}"
 			COMPONENT dev
 			EXCLUDE_FROM_ALL
-			FILES_MATCHING PATTERN "*.tplg"
+			FILE_PERMISSIONS ${_tplg_file_perms}
+			DIRECTORY_PERMISSIONS ${_tplg_dir_perms}
+			FILES_MATCHING
+			PATTERN "CMakeFiles" EXCLUDE
+			PATTERN "*.tplg"
 		)
 	endif()
 endif()
@@ -166,16 +197,92 @@ if(Python3_Interpreter_FOUND)
 			)
 		endif()
 	endif()
+	add_test(
+		NAME validate_packages
+		COMMAND ${Python3_EXECUTABLE} "${PROJECT_SOURCE_DIR}/tools/validate-package.py"
+		        --build-dir "${CMAKE_CURRENT_BINARY_DIR}"
+		        --abi-header "${SOF_ABI_HEADER}"
+		        --expected-version "${SOF_PACKAGE_VERSION}"
+		        --install-prefix "${CMAKE_INSTALL_PREFIX}"
+		        --vendor-dir "${SOF_TPLG_INSTALL_VENDOR_DIR}"
+		        --version-suffix "${SOF_TPLG_VERSION_SUFFIX}"
+	)
 endif()
 
 # ---------------------------------------------------------------------------
-# Packaging Support (cpack / ninja package)
+# Packaging Support (cpack / make deb / make rpm / make packages)
 # ---------------------------------------------------------------------------
 set(CPACK_PACKAGE_NAME "sof-topology")
 set(CPACK_PACKAGE_VENDOR "Sound Open Firmware Project")
-set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "SOF ALSA Topology Binaries (IPC3 & IPC4)")
-set(CPACK_PACKAGE_VERSION_MAJOR "${SOF_ABI_MAJOR}")
-set(CPACK_PACKAGE_VERSION_MINOR "${SOF_ABI_MINOR}")
-set(CPACK_PACKAGE_VERSION_PATCH "${SOF_ABI_PATCH}")
-set(CPACK_GENERATOR "TGZ")
+set(CPACK_PACKAGE_CONTACT "Sound Open Firmware Project <sof-devel@alsa-project.org>")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "SOF ALSA Topology Binaries (IPC3 & IPC4) - ABI ${SOF_ABI_VERSION_STRING}")
+set(CPACK_PACKAGE_DESCRIPTION "Sound Open Firmware (SOF) pre-compiled ALSA topology binaries for IPC3 and IPC4 platforms (SOF ABI ${SOF_ABI_VERSION_STRING}).")
+set(CPACK_PACKAGE_VERSION "${SOF_PACKAGE_VERSION}")
+set(CPACK_PACKAGE_VERSION_MAJOR "${SOF_PKG_VERSION_MAJOR}")
+set(CPACK_PACKAGE_VERSION_MINOR "${SOF_PKG_VERSION_MINOR}")
+set(CPACK_PACKAGE_VERSION_PATCH "${SOF_PKG_VERSION_PATCH}")
+set(CPACK_PACKAGE_RELEASE "1")
+set(CPACK_PACKAGING_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}")
+set(CPACK_RESOURCE_FILE_LICENSE "${PROJECT_SOURCE_DIR}/LICENSE")
+
+# Debian (.deb) package settings
+set(CPACK_DEBIAN_PACKAGE_NAME "sof-topology")
+set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "all")
+set(CPACK_DEBIAN_PACKAGE_SECTION "kernel")
+set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")
+set(CPACK_DEBIAN_PACKAGE_HOMEPAGE "https://github.com/thesofproject/sof-topologies")
+set(CPACK_DEBIAN_PACKAGE_CONTROL_STRICT_PERMISSION TRUE)
+set(CPACK_DEBIAN_FILE_NAME "DEB-DEFAULT")
+
+# RPM (.rpm) package settings
+set(CPACK_RPM_PACKAGE_NAME "sof-topology")
+set(CPACK_RPM_PACKAGE_ARCHITECTURE "noarch")
+set(CPACK_RPM_PACKAGE_RELEASE "${CPACK_PACKAGE_RELEASE}")
+set(CPACK_RPM_PACKAGE_LICENSE "BSD-3-Clause")
+set(CPACK_RPM_PACKAGE_GROUP "System Environment/Kernel")
+set(CPACK_RPM_PACKAGE_URL "https://github.com/thesofproject/sof-topologies")
+set(CPACK_RPM_PACKAGE_DESCRIPTION "${CPACK_PACKAGE_DESCRIPTION}")
+set(CPACK_RPM_DEFAULT_DIR_PERMISSIONS ${_tplg_dir_perms})
+set(CPACK_RPM_DEFAULT_FILE_PERMISSIONS ${_tplg_file_perms})
+set(CPACK_RPM_PACKAGE_AUTOREQ "no")
+set(CPACK_RPM_PACKAGE_AUTOPROV "no")
+set(CPACK_RPM_FILE_NAME "RPM-DEFAULT")
+list(APPEND CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST_ADDITION
+	"/lib"
+	"/lib/firmware"
+	"${CMAKE_INSTALL_PREFIX}"
+)
+
+set(CPACK_GENERATOR "TGZ;DEB;RPM" CACHE STRING "Default CPack package generators")
 include(CPack)
+
+add_custom_target(package-deb
+	COMMAND "${CMAKE_CPACK_COMMAND}" -G DEB
+	WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+	DEPENDS topologies
+	COMMENT "Building DEB package with pre-compiled SOF topologies"
+)
+
+add_custom_target(package-rpm
+	COMMAND "${CMAKE_CPACK_COMMAND}" -G RPM
+	WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+	DEPENDS topologies
+	COMMENT "Building RPM package with pre-compiled SOF topologies"
+)
+
+add_custom_target(package-tgz
+	COMMAND "${CMAKE_CPACK_COMMAND}" -G TGZ
+	WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+	DEPENDS topologies
+	COMMENT "Building TGZ archive with pre-compiled SOF topologies"
+)
+
+add_custom_target(deb DEPENDS package-deb)
+add_custom_target(rpm DEPENDS package-rpm)
+add_custom_target(packages
+	COMMAND "${CMAKE_CPACK_COMMAND}" -G "DEB;RPM;TGZ"
+	WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+	DEPENDS topologies
+	VERBATIM
+	COMMENT "Building DEB, RPM, and TGZ packages with pre-compiled SOF topologies"
+)

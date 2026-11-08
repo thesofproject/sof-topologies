@@ -28,7 +28,7 @@ usage: $0 [-T|-X|-1|-Y|-2|-t|-s|-A|-C|-L|-p|-i <dir>|-h]
        -C No build, only clean CMake re-configuration
        -L Mirror/symlink built outputs into ../sof/tools/build_tools/topology
           for backward compatibility with legacy CI/testbench scripts
-       -p Package built topologies into a .tar.gz archive via CPack
+       -p Package built topologies into RPM, DEB, and TGZ archives via CPack
        -i <dir> Install built topologies into <dir> (e.g. /lib/firmware)
 EOFUSAGE
 }

@@ -66,10 +66,21 @@ Or using standard CMake install:
 sudo cmake --install build --prefix /lib/firmware
 ```
 
-### 4. Package Release Tarball
+### 4. Build & Validate RPM, DEB, and TGZ Packages
 ```bash
-./scripts/build-topology.sh -p
-# Generates build/sof-topology-<abi_version>.tar.gz
+# Build DEB, RPM, and TGZ packages with pre-compiled topologies:
+make packages
+
+# Or build individual package formats:
+make deb    # Generates build/sof-topology_<version>_all.deb
+make rpm    # Generates build/sof-topology-<version>-1.noarch.rpm
+make tgz    # Generates build/sof-topology-<version>-Linux.tar.gz
+
+# Validate package file paths, permissions, version data, and symlinks:
+make validate-packages
+
+# Run the full topology and package test suite:
+make test
 ```
 
 ---
