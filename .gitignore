@@ -1,0 +1,11 @@
+build/
+build_*/
+build_test_topo/
+*.tplg
+*.conf.tmp
+/topology1/abi.h
+/topology2/abi.conf
+/topology2/abi-ipc3.conf
+__pycache__/
+*.pyc
+.sof-sync-commit
