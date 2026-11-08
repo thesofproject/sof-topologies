@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: BSD-3-Clause
+#
+# West manifest for standalone sof-topology usage.
+
+manifest:
+  version: "0.13"
+
+  defaults:
+    remote: thesofproject
+
+  remotes:
+    - name: thesofproject
+      url-base: https://github.com/thesofproject
+
+  projects:
+    - name: alsa-lib
+      repo-path: alsa-lib
+      path: alsa-lib
+      revision: 08b532cd3da9ac8f683bcb4e4beb9b74c39c1782
+
+    - name: alsa-utils
+      repo-path: alsa-utils
+      path: alsa-utils
+      revision: 9feb22ba45b48729729c8d194aaf1bc082a6842a
+
+  self:
+    path: sof-topologies

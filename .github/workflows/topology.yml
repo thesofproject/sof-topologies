@@ -1,0 +1,61 @@
+---
+name: SOF Topologies Build & Validation
+
+# yamllint disable-line rule:truthy
+on: [pull_request, push, workflow_dispatch, workflow_call]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.event_name }}-\
+          ${{ github.event_name == 'pull_request' && github.ref || github.run_id }}"
+  cancel-in-progress: true
+
+jobs:
+  build-topologies:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: sof-topologies
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get -y install ninja-build cmake m4 \
+            automake autoconf libtool gettext libasound2-dev \
+            pkg-config python3-construct
+
+      - name: Install autoconf 2.72
+        run: |
+          cd "${GITHUB_WORKSPACE}"
+          wget -q https://ftp.gnu.org/gnu/autoconf/autoconf-2.72.tar.gz
+          tar xf autoconf-2.72.tar.gz
+          cd autoconf-2.72
+          ./configure --prefix=/usr/local
+          make -j"$(nproc)"
+          sudo make install
+          hash -r
+
+      - name: Build ALSA lib & utils (alsatplg)
+        run: |
+          SOF_WORKSPACE="${GITHUB_WORKSPACE}" ./sof-topologies/scripts/build-alsa-tools.sh
+
+      - name: Build Topology1, Topology2 & Test Topologies
+        env:
+          SOF_WORKSPACE: ${{ github.workspace }}
+        run: |
+          ./sof-topologies/scripts/build-topology.sh -T -t
+
+      - name: Run Topology Validation Suite
+        run: |
+          ctest --test-dir "${GITHUB_WORKSPACE}/sof-topologies/build" --output-on-failure
+
+      - name: Validate Install & Package Targets
+        run: |
+          ./sof-topologies/scripts/install-topology.sh --dest "${GITHUB_WORKSPACE}/stage/lib/firmware"
+          test -d "${GITHUB_WORKSPACE}/stage/lib/firmware/intel/sof-tplg"
+          test -d "${GITHUB_WORKSPACE}/stage/lib/firmware/intel/sof-ipc4-tplg"
+          test -L "${GITHUB_WORKSPACE}/stage/lib/firmware/intel/sof-ace-tplg"
+          ./sof-topologies/scripts/build-topology.sh -p
