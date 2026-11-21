@@ -23,8 +23,8 @@ declare -a COMMIT_ID=(
 # Directory where repositories and tools/ will be cloned/installed.
 if [[ -n "${SOF_WORKSPACE:-}" ]]; then
     BASE_DIR="$SOF_WORKSPACE"
-elif [[ -d "$(dirname "$REPO_ROOT")/sof" ]]; then
-    BASE_DIR="$(dirname "$REPO_ROOT")"
+elif command -v west >/dev/null 2>&1 && _west_top="$(cd "$REPO_ROOT" && west topdir 2>/dev/null)" && [[ -n "$_west_top" ]]; then
+    BASE_DIR="$_west_top"
 else
     BASE_DIR="$(dirname "$REPO_ROOT")"
 fi

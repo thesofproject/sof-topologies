@@ -26,10 +26,33 @@ endif()
 
 # Resolve SOF ABI header (include/kernel/abi.h)
 # 1. Explicit -DSOF_ABI_HEADER=/path/to/abi.h
-# 2. External SOF checkout via -DSOF_ROOT_SOURCE_DIRECTORY=/path/to/sof
+# 2. External SOF checkout via -DSOF_ROOT_SOURCE_DIRECTORY=/path/to/sof,
+#    $SOF_SRC_DIR / $SOF_ROOT, `west list -f "{abspath}" sof`, or ../sof
 # 3. Local standalone copy in ${PROJECT_SOURCE_DIR}/include/kernel/abi.h
 if(NOT SOF_ABI_HEADER)
+	if(NOT DEFINED SOF_ROOT_SOURCE_DIRECTORY)
+		if(DEFINED ENV{SOF_SRC_DIR} AND EXISTS "$ENV{SOF_SRC_DIR}/src/include/kernel/abi.h")
+			set(SOF_ROOT_SOURCE_DIRECTORY "$ENV{SOF_SRC_DIR}")
+		elseif(DEFINED ENV{SOF_ROOT} AND EXISTS "$ENV{SOF_ROOT}/src/include/kernel/abi.h")
+			set(SOF_ROOT_SOURCE_DIRECTORY "$ENV{SOF_ROOT}")
+		else()
+			execute_process(
+				COMMAND west list -f "{abspath}" sof
+				WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+				OUTPUT_VARIABLE _west_sof_dir
+				OUTPUT_STRIP_TRAILING_WHITESPACE
+				ERROR_QUIET
+			)
+			if(_west_sof_dir AND EXISTS "${_west_sof_dir}/src/include/kernel/abi.h")
+				set(SOF_ROOT_SOURCE_DIRECTORY "${_west_sof_dir}")
+			elseif(EXISTS "${PROJECT_SOURCE_DIR}/../sof/src/include/kernel/abi.h")
+				set(SOF_ROOT_SOURCE_DIRECTORY "${PROJECT_SOURCE_DIR}/../sof")
+			endif()
+		endif()
+	endif()
+
 	if(DEFINED SOF_ROOT_SOURCE_DIRECTORY AND EXISTS "${SOF_ROOT_SOURCE_DIRECTORY}/src/include/kernel/abi.h")
+		get_filename_component(SOF_ROOT_SOURCE_DIRECTORY "${SOF_ROOT_SOURCE_DIRECTORY}" ABSOLUTE)
 		set(SOF_ABI_HEADER "${SOF_ROOT_SOURCE_DIRECTORY}/src/include/kernel/abi.h")
 	else()
 		set(SOF_ABI_HEADER "${PROJECT_SOURCE_DIR}/include/kernel/abi.h")

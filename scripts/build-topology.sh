@@ -61,6 +61,11 @@ sync_compat_links()
 {
 	local sof_repo="${SOF_WORKSPACE:+${SOF_WORKSPACE}/sof}"
 	if [ -z "$sof_repo" ] || [ ! -d "$sof_repo" ]; then
+		if command -v west >/dev/null 2>&1; then
+			sof_repo="$(cd "$SOF_TOPOLOGY_REPO" && west list -f "{abspath}" sof 2>/dev/null || true)"
+		fi
+	fi
+	if [ -z "$sof_repo" ] || [ ! -d "$sof_repo" ]; then
 		sof_repo="$(dirname "$SOF_TOPOLOGY_REPO")/sof"
 	fi
 	if [ ! -d "$sof_repo/tools" ]; then
