@@ -1,6 +1,15 @@
 # SPDX-License-Identifier: BSD-3-Clause
 #
-# West manifest for standalone sof-topology usage.
+# West manifest for standalone sof-topologies usage.
+#
+# Usage & update conventions:
+# - Standalone topology workspace (uses local include/kernel/abi.h, no SOF/Zephyr clone):
+#     west init -l sof-topologies && west update
+#   Update `self` (sof-topologies) with Git, then sync ALSA dependencies with West:
+#     git -C sof-topologies pull && west update
+# - Full SOF workspace (`west init -l sof`):
+#     `sof/west.yml` imports `alsa-lib` and `alsa-utils` from this file so the
+#     pinned ALSA commits are maintained in a single place.
 
 manifest:
   version: "0.13"

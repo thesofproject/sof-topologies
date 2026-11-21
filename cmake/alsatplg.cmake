@@ -17,6 +17,16 @@ if(NOT ALSATPLG_CMD)
 		if(DEFINED ENV{SOF_WORKSPACE})
 			list(APPEND _alsa_candidates "$ENV{SOF_WORKSPACE}/tools/bin/alsatplg")
 		endif()
+		execute_process(
+			COMMAND west topdir
+			WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
+			OUTPUT_VARIABLE _west_topdir
+			OUTPUT_STRIP_TRAILING_WHITESPACE
+			ERROR_QUIET
+		)
+		if(_west_topdir)
+			list(APPEND _alsa_candidates "${_west_topdir}/tools/bin/alsatplg")
+		endif()
 		list(APPEND _alsa_candidates
 			"${PROJECT_SOURCE_DIR}/../tools/bin/alsatplg"
 			"${CMAKE_CURRENT_LIST_DIR}/../../tools/bin/alsatplg"
